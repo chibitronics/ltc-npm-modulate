@@ -340,9 +340,9 @@
 
     function utf8Str2ArrayBuffer(str, returnUInt8Array) {
         var length = str.length,
-           buff = new ArrayBuffer(length),
-           arr = new Uint8Array(buff),
-           i;
+            buff = new ArrayBuffer(length),
+            arr = new Uint8Array(buff),
+            i;
 
         for (i = 0; i < length; i += 1) {
             arr[i] = str.charCodeAt(i);
