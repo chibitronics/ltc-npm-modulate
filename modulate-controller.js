@@ -51,7 +51,7 @@ ModulationController.prototype = {
         return this.pcmData;
     },
 
-    transcode: function (array, tag, type, lbr, version) {
+    transcode: function (array, lbr, version) {
         if ((version === 1) || (version === undefined)) {
             this.version = this.PROT_VERSION_1;
         } else if (version === 2) {
@@ -118,7 +118,7 @@ ModulationController.prototype = {
         tag.pause();
 
         // Perform the transcode, which stores data in this.pcmData.
-        var rawPcmData = this.transcode(array, type, lbr, version);
+        var rawPcmData = this.transcode(array, lbr, version);
 
         tag.onended = function () {
             // Play again if we haven't hit the limit'
