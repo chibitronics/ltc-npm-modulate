@@ -12,16 +12,10 @@ var ModulationController = function (params) {
     this.endCallback = params.endCallback || undefined;
     this.lbr = params.lbr || false;
 
-    /* Are these needed? */
-    this.saveState = false;
-
     this.isSending = false;
     this.playing = false;
-    this.done = false;
-    this.stoppedAt = 0;
     this.playCount = 0;
     this.maxPlays = 3;
-    this.byteArray = null;
     this.rate = 44100;
     this.pcmData = null;
 
