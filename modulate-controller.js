@@ -1,3 +1,4 @@
+'use strict';
 var Modulator = require("./modulate.js");
 var murmurhash3_32_gc = require("./murmurhash3_gc.js");
 var SparkMD5 = require("./spark-md5.js");
