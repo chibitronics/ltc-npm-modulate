@@ -53,9 +53,9 @@ ModulationController.prototype = {
     },
 
     transcode: function (array, lbr, version) {
-        if ((version === 1) || (version === undefined)) {
+        if (version === 1) {
             this.version = this.PROT_VERSION_1;
-        } else if (version === 2) {
+        } else if ((version === 2) || (version === undefined)) {
             this.version = this.PROT_VERSION_2;
         } else {
             throw "Unrecognized version: " + version;
