@@ -7,5 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Sean Cross <xobs@kosagi.com> (https://chibitronics.com/)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chibitronics/ltc-npm-modulate.git"
+  },
   "license": "MIT"
 }
