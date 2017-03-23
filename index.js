@@ -59,9 +59,9 @@ ModulationController.prototype = {
 
     transcode: function (array, tag, type, lbr, version) {
         if ((version === 1) || (version === undefined)) {
-            this.version = PROT_VERSION_1;
+            this.version = this.PROT_VERSION_1;
         } else if (version === 2) {
-            this.version = PROT_VERSION_2;
+            this.version = this.PROT_VERSION_2;
         } else {
             throw "Unrecognized version: " + version;
         }
@@ -282,13 +282,32 @@ ModulationController.prototype = {
 
         // now stripe the buffer to ensure transitions for baud sync
         // don't stripe the premable or the hash
-        for (i = 0; i < data.length; i++) {
-            if ((i % 16) == 3)
-                data[i] ^= 0x55;
-            else if ((i % 16) == 11)
-                data[i] ^= 0xaa;
+        if (this.version === this.PROT_VERSION_1) {
+            for (i = 0; i < data.length; i++) {
+                if ((i % 16) == 3)
+                    data[i] ^= 0x55;
+                else if ((i % 16) == 11)
+                    data[i] ^= 0xaa;
+            }
+        } else if (this.version === this.PROT_VERSION_2) {
+            for (i = 2; i < data.length + 4; i++) {
+                if (i < 4) {  // to include striping on the block number
+                    if ((i % 3) == 0)
+                        header[i] ^= 0x35;
+                    else if ((i % 3) == 1)
+                        header[i] ^= 0xac;
+                    else if ((i % 3) == 2)
+                        header[i] ^= 0x95;
+                } else {  // and striping on the data packet, but offset origin from block number
+                    if ((i % 3) == 0)
+                        data[i - 4] ^= 0x35;
+                    else if ((i % 3) == 1)
+                        data[i - 4] ^= 0xac;
+                    else if ((i % 3) == 2)
+                        data[i - 4] ^= 0x95;
+                }
+            }
         }
-
         return this.makePacket(preamble, header, data, footer, stop);
     },
 
