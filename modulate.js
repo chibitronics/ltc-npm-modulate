@@ -7,8 +7,12 @@ var Modulator = function (params) {
 
     if ("rate" in params)
         this.rate = params.rate;
+    if ("lbr" in params)
+        this.lbr = params.lbr;
+    else
+        this.lbr = false;
 
-    this.encoder = new FskEncoder(this.rate);
+    this.encoder = new FskEncoder(this.rate, this.lbr);
 
     // Create a "script node" that will actually generate audio samples.
     this.script_node = Modulator.prototype.script_node;
