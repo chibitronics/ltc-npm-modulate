@@ -3,13 +3,14 @@ var murmurhash3_32_gc = require("./murmurhash3_gc.js");
 var SparkMD5 = require("./spark-md5.js");
 var pcm = require("./pcm.js");
 
-var ModulationController = function(params) {
+var ModulationController = function (params) {
 
     if (!params)
         params = new Object();
 
     this.canvas = params.canvas || undefined;
     this.endCallback = params.endCallback || undefined;
+    this.lbr = params.lbr || false;
 
     /* Are these needed? */
     this.saveState = false;
@@ -30,7 +31,8 @@ var ModulationController = function(params) {
     this.DATA_PACKET = 0x02;
 
     this.modulator = new Modulator({
-        rate: this.rate
+        rate: this.rate,
+        lbr: this.lbr
     }); // the modulator object contains our window's audio context
 
     /* Preamble sent before every audio packet */
@@ -42,19 +44,19 @@ var ModulationController = function(params) {
 
 ModulationController.prototype = {
 
-    makeControlHeader: function() {
+    makeControlHeader: function () {
         return [this.PROT_VERSION, this.CONTROL_PACKET, 0x00, 0x00];
     },
 
-    makeDataHeader: function(blockNum) {
+    makeDataHeader: function (blockNum) {
         return [this.PROT_VERSION, this.DATA_PACKET, blockNum & 0xff, (blockNum >> 8) & 0xff];
     },
 
-    getPcmData: function() {
+    getPcmData: function () {
         return this.pcmData;
     },
 
-    sendData: function(data) {
+    sendData: function (data) {
         if (data) {
             var dataLength = data.length;
             var array = new Uint8Array(new ArrayBuffer(dataLength));
@@ -76,7 +78,7 @@ ModulationController.prototype = {
     // the parameter to this, "index", is a packet counter. We have to recursively call
     // transcodePacket using callbacks triggered by the completion of audio playback. I couldn't
     // think of any other way to do it.
-    transcodePacket: function(index) {
+    transcodePacket: function (index) {
         var fileLen = this.byteArray.length;
         var blocks = Math.ceil(fileLen / 256);
         var packet;
@@ -85,7 +87,7 @@ ModulationController.prototype = {
         // twice in the beginning because (a) it's tiny and almost free and (b) if we
         // happen to miss it, we waste an entire playback cycle before we start committing
         // data to memory
-        if (index == 0  || index == 1) {
+        if (index == 0 || index == 1) {
             packet = this.makeCtlPacket(this.byteArray.subarray(0, fileLen));
         }
         else {
@@ -104,9 +106,9 @@ ModulationController.prototype = {
         this.modulator.drawWaveform(this.canvas);
     },
 
-    transcodeToAudioTag: function(array, tag, type) {
+    transcodeToAudioTag: function (array, tag, type, lbr) {
         var isMP3 = (type.toLowerCase() === 'mp3');
-        var isWav = (type.toLowerCase() == "wav");
+        var isWav = (type.toLowerCase() === 'wav');
 
         var fileLen = array.length;
         var blocks = Math.ceil(fileLen / 256);
@@ -117,6 +119,12 @@ ModulationController.prototype = {
 
         // Additional padding to work around anti-pop hardware/software
         this.makeSilence(rawPcmData, 250);
+
+        // Low-bitrate adds on a pilot tone
+        if (lbr) {
+            this.makeLowTone(rawPcmData, 500);
+            this.makeSilence(rawPcmData, 100); // brief gap to actual data
+        }
 
         pcmPacket = this.modulator.modulatePcm(this.makeCtlPacket(array.subarray(0, fileLen)));
         for (var i = 0; i < pcmPacket.length; i++)
@@ -136,7 +144,7 @@ ModulationController.prototype = {
             var start = block * 256;
             var end = start + 256;
             if (end > fileLen)
-            end = fileLen;
+                end = fileLen;
             pcmPacket = this.modulator.modulatePcm(this.makeDataPacket(array.subarray(start, end), block));
             for (var i = 0; i < pcmPacket.length; i++)
                 rawPcmData.push(pcmPacket[i]);
@@ -150,7 +158,7 @@ ModulationController.prototype = {
 
         this.playCount = 0;
         tag.pause();
-        tag.onended = function() {
+        tag.onended = function () {
             // Play again if we haven't hit the limit'
             this.playCount++;
             if (this.playCount < this.maxPlays) {
@@ -162,7 +170,7 @@ ModulationController.prototype = {
                     this.endCallback();
             }
         }.bind(this);
-        
+
         if (isMP3)
             this.transcodeMp3(rawPcmData, tag);
         else if (isWav)
@@ -171,11 +179,11 @@ ModulationController.prototype = {
         tag.play();
     },
 
-    transcodeWav: function(samples, tag) {
+    transcodeWav: function (samples, tag) {
 
         var pcmData = [];//new Uint8Array(new ArrayBuffer(samples.length * 2));
         for (var i = 0; i < samples.length; i++) {
-            
+
             // Convert from 16-bit PCM to two's compliment 8-bit buffers'
             var sample = samples[i];
 
@@ -195,13 +203,23 @@ ModulationController.prototype = {
         tag.src = pcmObj.encode();
     },
 
-    makeSilence: function(buffer, msecs) {
+    makeSilence: function (buffer, msecs) {
         var silenceLen = Math.ceil(this.rate / (1000.0 / msecs));
         for (var i = 0; i < silenceLen; i++)
             buffer.push(0);
     },
 
-    finishPacketPlayback: function(index) {
+    makeLowTone: function (buffer, msecs) {
+        var bufLen = Math.ceil(this.rate / (1000.0 / msecs));
+        var omega_lo = (2 * Math.PI * 8666) / this.rate;
+        var phase = 0;
+        for (var i = 0; i < bufLen; i++) {
+            buffer.push(Math.round(Math.cos(phase) * 32767));
+            phase += omega_lo;
+        }
+    },
+
+    finishPacketPlayback: function (index) {
 
         if (!this.isSending)
             return false;
@@ -243,33 +261,33 @@ ModulationController.prototype = {
 
     },
 
-    makeUint32: function(num) {
+    makeUint32: function (num) {
         return [num & 0xff,
-                (num >> 8) & 0xff,
-                (num >> 16) & 0xff,
-                (num >> 24) & 0xff];
+        (num >> 8) & 0xff,
+        (num >> 16) & 0xff,
+        (num >> 24) & 0xff];
     },
 
-    makeUint16: function(num) {
+    makeUint16: function (num) {
         return [num & 0xff,
-                (num >> 8) & 0xff];
+        (num >> 8) & 0xff];
     },
 
     /* Appends "src" to "dst", beginning at offset "offset".
         * Handy for populating data buffers.
         */
-    appendData: function(dst, src, offset) {
+    appendData: function (dst, src, offset) {
         var i;
         for (i = 0; i < src.length; i++)
             dst[offset + i] = src[i];
         return i;
     },
 
-    makeHash: function(data, hash) {
+    makeHash: function (data, hash) {
         return this.makeUint32(murmurhash3_32_gc(data, hash));
     },
 
-    makeFooter: function(packet) {
+    makeFooter: function (packet) {
         var hash = 0xdeadbeef;
         var data = new Array();
         var i;
@@ -283,7 +301,7 @@ ModulationController.prototype = {
         return this.makeHash(data, hash);
     },
 
-    makePacket: function() {
+    makePacket: function () {
         var len = 0;
         var i;
         for (i = 0; i < arguments.length; i++)
@@ -298,18 +316,18 @@ ModulationController.prototype = {
         return pkt;
     },
 
-    makeCtlPacket: function(data) {
+    makeCtlPacket: function (data) {
         // parameters from microcontroller spec. Probably a better way
         // to do this in javascript, but I don't know how (seems like "const" could be used, but not universal)
         var preamble = this.preamble;
         var header = this.makeControlHeader();
         var program_length = this.makeUint32(data.length);
         var program_hash = this.makeHash(data, 0x32d0babe);  // 0x32d0babe by convention
-        var program_guid_str = SparkMD5.hash(String.fromCharCode.apply(null,data), false);
+        var program_guid_str = SparkMD5.hash(String.fromCharCode.apply(null, data), false);
         var program_guid = [];
         var i;
-        for (i = 0; i < program_guid_str.length-1; i += 2)
-            program_guid.push(parseInt(program_guid_str.substr(i,2),16));
+        for (i = 0; i < program_guid_str.length - 1; i += 2)
+            program_guid.push(parseInt(program_guid_str.substr(i, 2), 16));
 
         var footer = this.makeFooter(header, program_length, program_hash, program_guid);
         var stop = this.stop_bytes;
@@ -317,7 +335,7 @@ ModulationController.prototype = {
         return this.makePacket(preamble, header, program_length, program_hash, program_guid, footer, stop);
     },
 
-    makeDataPacket: function(dataIn, blocknum) {
+    makeDataPacket: function (dataIn, blocknum) {
         var i;
 
         // now assemble the packet
@@ -348,20 +366,20 @@ ModulationController.prototype = {
     },
 
     // once all audio is done playing, call this to reset UI elements to idle state
-    audioEndCB: function() {
+    audioEndCB: function () {
         this.isSending = false;
     },
 
-    stop: function() {
+    stop: function () {
         this.isSending = false;
     },
 
-    isRunning: function() {
+    isRunning: function () {
         return this.isSending;
     }
 }
 
 // AMD exports
-if (typeof module !== "undefined"  && module.exports) {
-  module.exports = ModulationController;
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = ModulationController;
 }
