@@ -25,7 +25,8 @@ var ModulationController = function (params) {
     this.rate = 44100;
     this.pcmData = null;
 
-    this.PROT_VERSION = 0x01;   // Protocol v1.0
+    this.PROT_VERSION_1 = 0x01;   // Protocol v1
+    this.PROT_VERSION_2 = 0x02;   // Protocol v2 (different striping pattern)
 
     this.CONTROL_PACKET = 0x01;
     this.DATA_PACKET = 0x02;
@@ -45,77 +46,31 @@ var ModulationController = function (params) {
 ModulationController.prototype = {
 
     makeControlHeader: function () {
-        return [this.PROT_VERSION, this.CONTROL_PACKET, 0x00, 0x00];
+        return [this.version, this.CONTROL_PACKET, 0x00, 0x00];
     },
 
     makeDataHeader: function (blockNum) {
-        return [this.PROT_VERSION, this.DATA_PACKET, blockNum & 0xff, (blockNum >> 8) & 0xff];
+        return [this.version, this.DATA_PACKET, blockNum & 0xff, (blockNum >> 8) & 0xff];
     },
 
     getPcmData: function () {
         return this.pcmData;
     },
 
-    sendData: function (data) {
-        if (data) {
-            var dataLength = data.length;
-            var array = new Uint8Array(new ArrayBuffer(dataLength));
-            for (i = 0; i < dataLength; i++)
-                array[i] = data.charCodeAt(i);
-
-            this.byteArray = array;
-            this.playCount = 0;
-            this.transcodePacket(0);
-            this.isSending = true;
+    transcode: function (array, tag, type, lbr, version) {
+        if ((version === 1) || (version === undefined)) {
+            this.version = PROT_VERSION_1;
+        } else if (version === 2) {
+            this.version = PROT_VERSION_2;
+        } else {
+            throw "Unrecognized version: " + version;
         }
-    },
-
-    // this is the core function for transcoding
-    // two object variables must be set:
-    // byteArray.
-    // byteArray is the binary file to transmit
-
-    // the parameter to this, "index", is a packet counter. We have to recursively call
-    // transcodePacket using callbacks triggered by the completion of audio playback. I couldn't
-    // think of any other way to do it.
-    transcodePacket: function (index) {
-        var fileLen = this.byteArray.length;
-        var blocks = Math.ceil(fileLen / 256);
-        var packet;
-
-        // index 0 & 1 create identical control packets. We transmit the control packet
-        // twice in the beginning because (a) it's tiny and almost free and (b) if we
-        // happen to miss it, we waste an entire playback cycle before we start committing
-        // data to memory
-        if (index == 0 || index == 1) {
-            packet = this.makeCtlPacket(this.byteArray.subarray(0, fileLen));
-        }
-        else {
-            // data index starts at 2, due to two sends of the control packet up front
-            var block = index - 2;
-            var start = block * 256;
-            var end = start + 256;
-            if (end > fileLen)
-                end = fileLen;
-            packet = this.makeDataPacket(this.byteArray.subarray(start, end), block);
-        }
-
-        this.silence = false;
-        this.modulator.modulate(packet);
-        this.modulator.playLoop(this, this.finishPacketPlayback, index + 1);
-        this.modulator.drawWaveform(this.canvas);
-    },
-
-    transcodeToAudioTag: function (array, tag, type, lbr) {
-        var isMP3 = (type.toLowerCase() === 'mp3');
-        var isWav = (type.toLowerCase() === 'wav');
 
         var fileLen = array.length;
         var blocks = Math.ceil(fileLen / 256);
         var rawPcmData = [];
 
         var pcmPacket;
-        this.tag = tag;
 
         // Additional padding to work around anti-pop hardware/software
         this.makeSilence(rawPcmData, 250);
@@ -156,8 +111,21 @@ ModulationController.prototype = {
         // Additional padding to work around anti-pop hardware/software
         this.makeSilence(rawPcmData, 250);
 
+        return rawPcmData;
+    },
+
+    transcodeToAudioTag: function (array, tag, type, lbr, version) {
+        var isMP3 = (type.toLowerCase() === 'mp3');
+        var isWav = (type.toLowerCase() === 'wav');
+
         this.playCount = 0;
+        this.tag = tag;
+
         tag.pause();
+
+        // Perform the transcode, which stores data in this.pcmData.
+        var rawPcmData = this.transcode(array, type, lbr, version);
+
         tag.onended = function () {
             // Play again if we haven't hit the limit'
             this.playCount++;
@@ -176,6 +144,7 @@ ModulationController.prototype = {
         else if (isWav)
             this.transcodeWav(rawPcmData, tag);
         this.pcmData = rawPcmData;
+
         tag.play();
     },
 
@@ -217,48 +186,6 @@ ModulationController.prototype = {
             buffer.push(Math.round(Math.cos(phase) * 32767));
             phase += omega_lo;
         }
-    },
-
-    finishPacketPlayback: function (index) {
-
-        if (!this.isSending)
-            return false;
-
-        // If "silence" is false, then we just played a data packet.  Play silence now.
-        if (this.silence == false) {
-            this.silence = true;
-
-            if (index == 1)
-                this.modulator.silence(100); // redundant send of control packet
-            else if (index == 2)
-                this.modulator.silence(500); // 0.5s for bulk flash erase to complete
-            else
-                this.modulator.silence(80); // slight pause between packets to allow burning
-            this.modulator.playLoop(this, this.finishPacketPlayback, index);
-            return true;
-        }
-
-        if (((index - 2) * 256) < this.byteArray.length) {
-            // if we've got more data, transcode and loop
-            this.transcodePacket(index);
-            return true;
-        }
-        else {
-            // if we've reached the end of our data, check to see how
-            // many times we've played the entire file back. We want to play
-            // it back a couple of times because sometimes packets get
-            // lost or corrupted.
-            if (this.playCount < 2) { // set this higher for more loops!
-                this.playCount++;
-                this.transcodePacket(0); // start it over!
-                return true;
-            }
-            else {
-                this.audioEndCB(); // clean up the UI when done
-                return false;
-            }
-        }
-
     },
 
     makeUint32: function (num) {
@@ -363,11 +290,6 @@ ModulationController.prototype = {
         }
 
         return this.makePacket(preamble, header, data, footer, stop);
-    },
-
-    // once all audio is done playing, call this to reset UI elements to idle state
-    audioEndCB: function () {
-        this.isSending = false;
     },
 
     stop: function () {
