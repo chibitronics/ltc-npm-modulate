@@ -109,9 +109,9 @@ ModulationController.prototype = {
         return rawPcmData;
     },
 
-    transcodeToAudioTag: function (array, tag, type, lbr, version) {
-        var isMP3 = (type.toLowerCase() === 'mp3');
-        var isWav = (type.toLowerCase() === 'wav');
+    transcodeToAudioTag: function (array, tag, audioType, lbr, version) {
+        var isMP3 = (audioType.toLowerCase() === 'mp3');
+        var isWav = (audioType.toLowerCase() === 'wav');
 
         this.playCount = 0;
         this.tag = tag;
@@ -144,7 +144,6 @@ ModulationController.prototype = {
     },
 
     transcodeWav: function (samples, tag) {
-
         var pcmData = [];//new Uint8Array(new ArrayBuffer(samples.length * 2));
         for (var i = 0; i < samples.length; i++) {
 
@@ -165,6 +164,65 @@ ModulationController.prototype = {
             depth: 16
         }).toWav(pcmData);
         tag.src = pcmObj.encode();
+    },
+
+    transcodeMp3: function (samples, tag) {
+        var mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128); //mono 44.1khz encode to 128kbps
+        var samples16 = new Int16Array(samples.length);
+        var timeElapsed;
+        var timeStart;
+        var timeEnd;
+
+        timeStart = performance.now();
+        for (var i = 0; i < samples.length; i++) {
+            samples16[i] = samples[i];
+        }
+        timeEnd = performance.now();
+        timeElapsed = timeEnd - timeStart;
+        console.log("Copied " + samples.length + " data bytes in " +
+            timeElapsed.toFixed(2) + "ms");
+
+        // Taken from lamejs README.md
+        var sampleBlockSize = 1152; //can be anything but make it a multiple of 576 to make encoders life easier
+        var mp3Data = [];
+        var mp3buf;
+        for (var i = 0; i < samples16.length; i += sampleBlockSize) {
+            var sampleChunk = samples16.subarray(i, i + sampleBlockSize);
+            timeStart = performance.now();
+            mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+            timeEnd = performance.now();
+            timeElapsed = timeEnd - timeStart;
+            console.log("Encoded " + sampleBlockSize + " data bytes in " +
+                timeElapsed.toFixed(2) + "ms");
+            if (mp3buf.length > 0) {
+                mp3Data.push(mp3buf);
+            }
+        }
+        timeStart = performance.now();
+        mp3buf = mp3encoder.flush();   //finish writing mp3
+        timeEnd = performance.now();
+        timeElapsed = timeEnd - timeStart;
+        console.log("Flushed data bytes in " +
+            timeElapsed.toFixed(2) + "ms");
+
+        timeStart = performance.now();
+        if (mp3buf.length > 0) {
+            mp3Data.push(new Int8Array(mp3buf));
+        }
+        timeEnd = performance.now();
+        timeElapsed = timeEnd - timeStart;
+        console.log("Pushed " + mp3buf.length + "bytes in " +
+            timeElapsed.toFixed(2) + "ms");
+
+        timeStart = performance.now();
+        var blob = new Blob(mp3Data, { type: 'audio/mp3' });
+        var url = window.URL.createObjectURL(blob);
+        timeEnd = performance.now();
+        timeElapsed = timeEnd - timeStart;
+        console.log("Created URL in" +
+            timeElapsed.toFixed(2) + "ms");
+
+        tag.src = url;
     },
 
     makeSilence: function (buffer, msecs) {
