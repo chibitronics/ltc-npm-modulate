@@ -10,7 +10,7 @@ First, get some data.  The usual way to do this is via some base64 encoded data 
     var data = atob(results.output);
     var dataU8 = new Uint8Array(data.length);
     for (var i = 0; i < data.length; i++) {
-        dataU8[i] = data[i];
+        dataU8[i] = data.charCodeAt(i);
     }
 
 Next, initialize a modulation controller.  If you want to be able to visualize the output waveform, give it a canvas to work with.
