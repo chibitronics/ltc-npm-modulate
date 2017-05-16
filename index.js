@@ -143,7 +143,7 @@ ModulationController.prototype = {
         tag.play();
     },
 
-    transcodeWav: function (samples, tag) {
+    getWavPcmObj: function (samples) {
         var pcmData = [];//new Uint8Array(new ArrayBuffer(samples.length * 2));
         for (var i = 0; i < samples.length; i++) {
 
@@ -163,6 +163,18 @@ ModulationController.prototype = {
             rate: this.rate,
             depth: 16
         }).toWav(pcmData);
+        
+        return pcmObj;
+    },
+
+    getRawWavData: function (array, lbr, version) {
+        var rawPcmData = this.transcode(array, lbr, version);
+        var pcmObj = this.getWavPcmObj(rawPcmData);
+        return pcmObj.raw;
+    },
+
+    transcodeWav: function (samples, tag) {
+        var pcmObj = this.getWavPcmObj(samples);
         tag.src = pcmObj.encode();
     },
 
