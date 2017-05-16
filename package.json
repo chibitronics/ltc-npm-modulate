@@ -1,6 +1,6 @@
 {
   "name": "chibitronics-ltc-modulate",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Modulator code for Chibitronics Love-to-Code",
   "main": "index.js",
   "scripts": {
