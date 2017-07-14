@@ -2,15 +2,12 @@ var FskEncoder = require("./afsk-encoder.js");
 
 var Modulator = function(params) {
 
-    if (!params)
+    if (!params) {
         params = new Object();
+    }
 
-    if ("rate" in params)
-        this.rate = params.rate;
-    if ("lbr" in params)
-        this.lbr = params.lbr;
-    else
-        this.lbr = false;
+    this.rate = params.rate || 44100;
+    this.lbr = params.lbr || false;
 
     this.encoder = new FskEncoder(this.rate, this.lbr);
 
