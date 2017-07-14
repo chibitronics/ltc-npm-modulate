@@ -13,7 +13,7 @@ var ModulationController = function(params) {
     this.endCallback = params.endCallback || undefined;
     this.lbr = params.lbr || false;
     this.version = params.version || 2;
-    this.loops = params.loops || 3;
+    this.repeat = params.repeat || 3;
     this.format = params.format || "wav";
     this.format = this.format.toLowerCase();
 
@@ -159,7 +159,7 @@ ModulationController.prototype = {
         tag.onended = function() {
             // Play again if we haven't hit the limit'
             this.playCount++;
-            if (this.playCount < this.loops) {
+            if (this.playCount < this.repeat) {
                 tag.play();
             } else {
                 this.tag.onended = undefined;
@@ -181,7 +181,7 @@ ModulationController.prototype = {
     },
 
     getWavPcmObj: function(samples) {
-        var pcmData = []; //new Uint8Array(new ArrayBuffer(samples.length * 2));
+        var pcmData = [];
         for (var i = 0; i < samples.length; i++) {
 
             // Convert from 16-bit PCM to two's compliment 8-bit buffers'
