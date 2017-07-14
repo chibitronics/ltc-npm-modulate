@@ -1,15 +1,15 @@
 {
-  "name": "chibitronics-ltc-modulate",
-  "version": "1.0.5",
-  "description": "Modulator code for Chibitronics Love-to-Code",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Sean Cross <xobs@kosagi.com> (https://chibitronics.com/)",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/chibitronics/ltc-npm-modulate.git"
-  },
-  "license": "MIT"
+    "name": "chibitronics-ltc-modulate",
+    "version": "1.0.5",
+    "description": "Modulator code for Chibitronics Love-to-Code",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "Sean Cross <xobs@kosagi.com> (https://chibitronics.com/)",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chibitronics/ltc-npm-modulate.git"
+    },
+    "license": "MIT"
 }
