@@ -71,7 +71,7 @@ ModulationController.prototype = {
         var pcmPacket;
 
         // Additional padding to work around anti-pop hardware/software
-        this.makeSilence(rawPcmData, 250);
+        this.makeSilence(rawPcmData, 150);
 
         // Low-bitrate adds on a pilot tone
         if (lbr) {
