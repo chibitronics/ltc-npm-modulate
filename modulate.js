@@ -37,19 +37,11 @@ Modulator.prototype = {
 
         var bufLen = Math.ceil(data.length * 8 * this.encoder.samplesPerBit());
         var modulatedData = new Float32Array(bufLen);
-        if (type === undefined)
+        if (type === undefined) {
             type = 16;
+        }
 
-        var timeStart = 0;
-        var timeEnd = 0;
-        if ((typeof performance) === "object") {
-            timeStart = performance.now();
-        }
         this.encoder.modulate(data, modulatedData); // writes outputFloatArray in-place
-        if ((typeof performance) === "object") {
-            timeEnd = performance.now();
-        }
-        var timeElapsed = timeEnd - timeStart;
 
         if (type === 16) {
             var pcmData = new Int16Array(modulatedData.length);
