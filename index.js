@@ -12,11 +12,14 @@ var ModulationController = function(params) {
     this.canvas = params.canvas || undefined;
     this.endCallback = params.endCallback || undefined;
     this.lbr = params.lbr || false;
+    this.version = params.version || 2;
+    this.loops = params.loops || 3;
+    this.format = params.format || "wav";
+    this.format = this.format.toLowerCase();
 
     this.isSending = false;
     this.playing = false;
     this.playCount = 0;
-    this.maxPlays = 3;
     this.rate = 44100;
     this.pcmData = null;
 
@@ -104,14 +107,44 @@ ModulationController.prototype = {
         }
 
         // Additional padding to work around anti-pop hardware/software
-        this.makeSilence(rawPcmData, 250);
+        this.makeSilence(rawPcmData, 150);
 
         return rawPcmData;
     },
 
     transcodeToAudioTag: function(array, tag, audioType, lbr, version) {
-        var isMP3 = (audioType.toLowerCase() === 'mp3');
-        var isWav = (audioType.toLowerCase() === 'wav');
+
+        // Figure out which audio format to use, and fall back to a default format if unspecified.
+        if (audioType !== undefined) {
+            if (audioType.toLowerCase() === 'mp3') {
+                audioType = 'mp3';
+            } else if (audioType.toLowerCase() === 'wav') {
+                audioType = 'wav';
+            } else {
+                console.warn("Unrecognized audio format: " + audioType);
+            }
+            audioType = undefined;
+        }
+        // Use a default audio format if a valid one is unavailable.
+        if (audioType === undefined) {
+            if (this.format === 'mp3') {
+                audioType = 'mp3';
+            } else if (this.format === 'wav') {
+                audioType = 'wav';
+            } else {
+                throw "Unrecognized audio type";
+            }
+        }
+
+        // If no lbr is specified, use the default
+        if (lbr === undefined) {
+            lbr = this.lbr;
+        }
+
+        // Use the default version, if unspecified.
+        if (version === undefined) {
+            version = this.version;
+        }
 
         this.playCount = 0;
         this.tag = tag;
@@ -124,7 +157,7 @@ ModulationController.prototype = {
         tag.onended = function() {
             // Play again if we haven't hit the limit'
             this.playCount++;
-            if (this.playCount < this.maxPlays) {
+            if (this.playCount < this.loops) {
                 tag.play();
             } else {
                 this.tag.onended = undefined;
@@ -133,10 +166,13 @@ ModulationController.prototype = {
             }
         }.bind(this);
 
-        if (isMP3)
+        if (audioType === 'mp3') {
             this.transcodeMp3(rawPcmData, tag);
-        else if (isWav)
+        } else if (audioType === 'wav') {
             this.transcodeWav(rawPcmData, tag);
+        } else {
+            throw "Unrecognized audio format: " + audioType;
+        }
         this.pcmData = rawPcmData;
 
         tag.play();
@@ -373,6 +409,8 @@ ModulationController.prototype = {
                         data[i - 4] ^= 0x95;
                 }
             }
+        } else {
+            throw "Unrecognized version: " + this.version;
         }
         return this.makePacket(preamble, header, data, footer, stop);
     },
