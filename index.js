@@ -149,7 +149,9 @@ ModulationController.prototype = {
         this.playCount = 0;
         this.tag = tag;
 
-        tag.pause();
+        if (!tag.paused) {
+            tag.pause();
+        }
 
         // Perform the transcode, which stores data in this.pcmData.
         var rawPcmData = this.transcode(array, lbr, version);
