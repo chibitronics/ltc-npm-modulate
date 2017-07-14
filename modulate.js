@@ -1,6 +1,6 @@
 var FskEncoder = require("./afsk-encoder.js");
 
-var Modulator = function (params) {
+var Modulator = function(params) {
 
     if (!params)
         params = new Object();
@@ -28,7 +28,7 @@ Modulator.prototype = {
     scriptNode: null, // Re-used script node object for audio generation
     can_stop: true, // Whether we can stop (usually we can)
 
-    silence: function (msecs) {
+    silence: function(msecs) {
         var bufLen = Math.ceil(window.audioContext.sampleRate / (1000.0 / msecs));
         this.outputAudioBuffer = window.audioContext.createBuffer(1, bufLen, window.audioContext.sampleRate);
         var outputFloatArray = this.outputAudioBuffer.getChannelData(0);
@@ -37,7 +37,7 @@ Modulator.prototype = {
         this.script_node_offset = 0;
     },
 
-    processAudio: function (ev) {
+    processAudio: function(ev) {
         var outl = ev.outputBuffer.getChannelData(0);
         var outr = ev.outputBuffer.getChannelData(1);
 
@@ -73,12 +73,12 @@ Modulator.prototype = {
     },
 
     // immediately play the modulated audio exactly once. Useful for debugging single packets
-    playBuffer: function (obj, func) {
+    playBuffer: function(obj, func) {
         console.log("-- playAudioBuffer --");
         var bufferNode = window.audioContext.createBufferSource();
         bufferNode.buffer = this.outputAudioBuffer;
         bufferNode.connect(window.audioContext.destination); // Connect to speakers
-        bufferNode.addEventListener("ended", function () {
+        bufferNode.addEventListener("ended", function() {
             var playTimeEnd = performance.now();
             var timeElapsed = playTimeEnd - this.playTimeStart;
             console.log("got audio ended event after " + timeElapsed.toFixed(2) + "ms");
@@ -94,9 +94,9 @@ Modulator.prototype = {
     // tells where to start playing. You could, in theory, start modulating
     // part-way through an audio stream by setting index to a higher number on your
     // first call.
-    playLoop: function (obj, end_func, param) {
+    playLoop: function(obj, end_func, param) {
 
-        this.get_more_data = function () {
+        this.get_more_data = function() {
             if (!end_func.call(obj, param)) {
                 this.playing = false;
                 return false;
@@ -104,7 +104,7 @@ Modulator.prototype = {
             return true;
         };
 
-        this.script_node.onaudioprocess = function (ev) {
+        this.script_node.onaudioprocess = function(ev) {
             Modulator.prototype.processAudio.call(this, ev);
         }.bind(this);
 
@@ -114,7 +114,7 @@ Modulator.prototype = {
         }
     },
 
-    modulatePcm: function (data, type) {
+    modulatePcm: function(data, type) {
 
         var bufLen = Math.ceil(data.length * 8 * this.encoder.samplesPerBit());
         var modulatedData = new Float32Array(bufLen);
@@ -139,8 +139,7 @@ Modulator.prototype = {
                 pcmData[i] = Math.round((modulatedData[i]) * 32767);
             }
             return pcmData;
-        }
-        else {
+        } else {
             var pcmData = new Uint8Array(new ArrayBuffer(modulatedData.length * 2));
             for (var i = 0; i < modulatedData.length; i++) {
                 // Map -1 .. 1 to -32767 .. 32768
