@@ -79,14 +79,14 @@ ModulationController.prototype = {
             this.makeSilence(rawPcmData, 100); // brief gap to actual data
         }
 
-        pcmPacket = this.modulator.modulatePcm(this.makeCtlPacket(array.subarray(0, fileLen)));
+        pcmPacket = this.modulator.modulatePcm(this.makeCtlPacket(array.subarray(0, fileLen)), 16, this.lbr);
         for (var i = 0; i < pcmPacket.length; i++)
             rawPcmData.push(pcmPacket[i]);
 
         // Make silence here
         this.makeSilence(rawPcmData, 100);
 
-        pcmPacket = this.modulator.modulatePcm(this.makeCtlPacket(array.subarray(0, fileLen)));
+        pcmPacket = this.modulator.modulatePcm(this.makeCtlPacket(array.subarray(0, fileLen)), 16, this.lbr);
         for (var i = 0; i < pcmPacket.length; i++)
             rawPcmData.push(pcmPacket[i]);
 
@@ -98,7 +98,7 @@ ModulationController.prototype = {
             var end = start + 256;
             if (end > fileLen)
                 end = fileLen;
-            pcmPacket = this.modulator.modulatePcm(this.makeDataPacket(array.subarray(start, end), block));
+            pcmPacket = this.modulator.modulatePcm(this.makeDataPacket(array.subarray(start, end), block), 16, this.lbr);
             for (var i = 0; i < pcmPacket.length; i++)
                 rawPcmData.push(pcmPacket[i]);
 
