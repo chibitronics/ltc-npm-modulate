@@ -226,8 +226,6 @@ ModulationController.prototype = {
         }
         timeEnd = performance.now();
         timeElapsed = timeEnd - timeStart;
-        console.log("Copied " + samples.length + " data bytes in " +
-            timeElapsed.toFixed(2) + "ms");
 
         // Taken from lamejs README.md
         var sampleBlockSize = 1152; //can be anything but make it a multiple of 576 to make encoders life easier
@@ -239,8 +237,6 @@ ModulationController.prototype = {
             mp3buf = mp3encoder.encodeBuffer(sampleChunk);
             timeEnd = performance.now();
             timeElapsed = timeEnd - timeStart;
-            console.log("Encoded " + sampleBlockSize + " data bytes in " +
-                timeElapsed.toFixed(2) + "ms");
             if (mp3buf.length > 0) {
                 mp3Data.push(mp3buf);
             }
@@ -249,8 +245,6 @@ ModulationController.prototype = {
         mp3buf = mp3encoder.flush(); //finish writing mp3
         timeEnd = performance.now();
         timeElapsed = timeEnd - timeStart;
-        console.log("Flushed data bytes in " +
-            timeElapsed.toFixed(2) + "ms");
 
         timeStart = performance.now();
         if (mp3buf.length > 0) {
@@ -258,16 +252,12 @@ ModulationController.prototype = {
         }
         timeEnd = performance.now();
         timeElapsed = timeEnd - timeStart;
-        console.log("Pushed " + mp3buf.length + "bytes in " +
-            timeElapsed.toFixed(2) + "ms");
 
         timeStart = performance.now();
         var blob = new Blob(mp3Data, { type: 'audio/mp3' });
         var url = window.URL.createObjectURL(blob);
         timeEnd = performance.now();
         timeElapsed = timeEnd - timeStart;
-        console.log("Created URL in" +
-            timeElapsed.toFixed(2) + "ms");
 
         tag.src = url;
     },
