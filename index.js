@@ -4,7 +4,7 @@ var murmurhash3_32_gc = require("./murmurhash3_gc.js");
 var SparkMD5 = require("./spark-md5.js");
 var pcm = require("./pcm.js");
 
-var ModulationController = function (params) {
+var ModulationController = function(params) {
 
     if (!params)
         params = new Object();
@@ -20,8 +20,8 @@ var ModulationController = function (params) {
     this.rate = 44100;
     this.pcmData = null;
 
-    this.PROT_VERSION_1 = 0x01;   // Protocol v1
-    this.PROT_VERSION_2 = 0x02;   // Protocol v2 (different striping pattern)
+    this.PROT_VERSION_1 = 0x01; // Protocol v1
+    this.PROT_VERSION_2 = 0x02; // Protocol v2 (different striping pattern)
 
     this.CONTROL_PACKET = 0x01;
     this.DATA_PACKET = 0x02;
@@ -40,19 +40,19 @@ var ModulationController = function (params) {
 
 ModulationController.prototype = {
 
-    makeControlHeader: function () {
+    makeControlHeader: function() {
         return [this.version, this.CONTROL_PACKET, 0x00, 0x00];
     },
 
-    makeDataHeader: function (blockNum) {
+    makeDataHeader: function(blockNum) {
         return [this.version, this.DATA_PACKET, blockNum & 0xff, (blockNum >> 8) & 0xff];
     },
 
-    getPcmData: function () {
+    getPcmData: function() {
         return this.pcmData;
     },
 
-    transcode: function (array, lbr, version) {
+    transcode: function(array, lbr, version) {
         if (version === 1) {
             this.version = this.PROT_VERSION_1;
         } else if ((version === 2) || (version === undefined)) {
@@ -109,7 +109,7 @@ ModulationController.prototype = {
         return rawPcmData;
     },
 
-    transcodeToAudioTag: function (array, tag, audioType, lbr, version) {
+    transcodeToAudioTag: function(array, tag, audioType, lbr, version) {
         var isMP3 = (audioType.toLowerCase() === 'mp3');
         var isWav = (audioType.toLowerCase() === 'wav');
 
@@ -121,13 +121,12 @@ ModulationController.prototype = {
         // Perform the transcode, which stores data in this.pcmData.
         var rawPcmData = this.transcode(array, lbr, version);
 
-        tag.onended = function () {
+        tag.onended = function() {
             // Play again if we haven't hit the limit'
             this.playCount++;
             if (this.playCount < this.maxPlays) {
                 tag.play();
-            }
-            else {
+            } else {
                 this.tag.onended = undefined;
                 if (this.endCallback)
                     this.endCallback();
@@ -143,8 +142,8 @@ ModulationController.prototype = {
         tag.play();
     },
 
-    getWavPcmObj: function (samples) {
-        var pcmData = [];//new Uint8Array(new ArrayBuffer(samples.length * 2));
+    getWavPcmObj: function(samples) {
+        var pcmData = []; //new Uint8Array(new ArrayBuffer(samples.length * 2));
         for (var i = 0; i < samples.length; i++) {
 
             // Convert from 16-bit PCM to two's compliment 8-bit buffers'
@@ -163,22 +162,22 @@ ModulationController.prototype = {
             rate: this.rate,
             depth: 16
         }).toWav(pcmData);
-        
+
         return pcmObj;
     },
 
-    getRawWavData: function (array, lbr, version) {
+    getRawWavData: function(array, lbr, version) {
         var rawPcmData = this.transcode(array, lbr, version);
         var pcmObj = this.getWavPcmObj(rawPcmData);
         return pcmObj.raw;
     },
 
-    transcodeWav: function (samples, tag) {
+    transcodeWav: function(samples, tag) {
         var pcmObj = this.getWavPcmObj(samples);
         tag.src = pcmObj.encode();
     },
 
-    transcodeMp3: function (samples, tag) {
+    transcodeMp3: function(samples, tag) {
         var mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128); //mono 44.1khz encode to 128kbps
         var samples16 = new Int16Array(samples.length);
         var timeElapsed;
@@ -211,7 +210,7 @@ ModulationController.prototype = {
             }
         }
         timeStart = performance.now();
-        mp3buf = mp3encoder.flush();   //finish writing mp3
+        mp3buf = mp3encoder.flush(); //finish writing mp3
         timeEnd = performance.now();
         timeElapsed = timeEnd - timeStart;
         console.log("Flushed data bytes in " +
@@ -237,13 +236,13 @@ ModulationController.prototype = {
         tag.src = url;
     },
 
-    makeSilence: function (buffer, msecs) {
+    makeSilence: function(buffer, msecs) {
         var silenceLen = Math.ceil(this.rate / (1000.0 / msecs));
         for (var i = 0; i < silenceLen; i++)
             buffer.push(0);
     },
 
-    makeLowTone: function (buffer, msecs) {
+    makeLowTone: function(buffer, msecs) {
         var bufLen = Math.ceil(this.rate / (1000.0 / msecs));
         var omega_lo = (2 * Math.PI * 8666) / this.rate;
         var phase = 0;
@@ -253,33 +252,35 @@ ModulationController.prototype = {
         }
     },
 
-    makeUint32: function (num) {
+    makeUint32: function(num) {
         return [num & 0xff,
-        (num >> 8) & 0xff,
-        (num >> 16) & 0xff,
-        (num >> 24) & 0xff];
+            (num >> 8) & 0xff,
+            (num >> 16) & 0xff,
+            (num >> 24) & 0xff
+        ];
     },
 
-    makeUint16: function (num) {
+    makeUint16: function(num) {
         return [num & 0xff,
-        (num >> 8) & 0xff];
+            (num >> 8) & 0xff
+        ];
     },
 
     /* Appends "src" to "dst", beginning at offset "offset".
-        * Handy for populating data buffers.
-        */
-    appendData: function (dst, src, offset) {
+     * Handy for populating data buffers.
+     */
+    appendData: function(dst, src, offset) {
         var i;
         for (i = 0; i < src.length; i++)
             dst[offset + i] = src[i];
         return i;
     },
 
-    makeHash: function (data, hash) {
+    makeHash: function(data, hash) {
         return this.makeUint32(murmurhash3_32_gc(data, hash));
     },
 
-    makeFooter: function (packet) {
+    makeFooter: function(packet) {
         var hash = 0xdeadbeef;
         var data = new Array();
         var i;
@@ -293,7 +294,7 @@ ModulationController.prototype = {
         return this.makeHash(data, hash);
     },
 
-    makePacket: function () {
+    makePacket: function() {
         var len = 0;
         var i;
         for (i = 0; i < arguments.length; i++)
@@ -308,13 +309,13 @@ ModulationController.prototype = {
         return pkt;
     },
 
-    makeCtlPacket: function (data) {
+    makeCtlPacket: function(data) {
         // parameters from microcontroller spec. Probably a better way
         // to do this in javascript, but I don't know how (seems like "const" could be used, but not universal)
         var preamble = this.preamble;
         var header = this.makeControlHeader();
         var program_length = this.makeUint32(data.length);
-        var program_hash = this.makeHash(data, 0x32d0babe);  // 0x32d0babe by convention
+        var program_hash = this.makeHash(data, 0x32d0babe); // 0x32d0babe by convention
         var program_guid_str = SparkMD5.hashBinary(String.fromCharCode.apply(null, data), false);
         var program_guid = [];
         var i;
@@ -327,7 +328,7 @@ ModulationController.prototype = {
         return this.makePacket(preamble, header, program_length, program_hash, program_guid, footer, stop);
     },
 
-    makeDataPacket: function (dataIn, blocknum) {
+    makeDataPacket: function(dataIn, blocknum) {
         var i;
 
         // now assemble the packet
@@ -356,14 +357,14 @@ ModulationController.prototype = {
             }
         } else if (this.version === this.PROT_VERSION_2) {
             for (i = 2; i < data.length + 4; i++) {
-                if (i < 4) {  // to include striping on the block number
+                if (i < 4) { // to include striping on the block number
                     if ((i % 3) == 0)
                         header[i] ^= 0x35;
                     else if ((i % 3) == 1)
                         header[i] ^= 0xac;
                     else if ((i % 3) == 2)
                         header[i] ^= 0x95;
-                } else {  // and striping on the data packet, but offset origin from block number
+                } else { // and striping on the data packet, but offset origin from block number
                     if ((i % 3) == 0)
                         data[i - 4] ^= 0x35;
                     else if ((i % 3) == 1)
@@ -376,11 +377,11 @@ ModulationController.prototype = {
         return this.makePacket(preamble, header, data, footer, stop);
     },
 
-    stop: function () {
+    stop: function() {
         this.isSending = false;
     },
 
-    isRunning: function () {
+    isRunning: function() {
         return this.isSending;
     }
 }
