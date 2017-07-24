@@ -13,6 +13,7 @@ var ModulationController = function(params) {
     this.lbr = params.lbr || false;
     this.version = params.version || 2;
     this.repeat = params.repeat || 3;
+    this.uriType = params.uriType || 'data';
     this.format = params.format || "wav";
     this.format = this.format.toLowerCase();
 
@@ -244,6 +245,7 @@ ModulationController.prototype = {
         this.fillU32(wavData, 40, subChunk2Size);
 
         // Copy over the wav data
+        var wavDataOffset = 44;
         for (var i = 0; i < samples.length; i++) {
 
             // Convert from 16-bit PCM to two's compliment 8-bit buffers'
@@ -253,20 +255,111 @@ ModulationController.prototype = {
             if (sample < 0)
                 sample = (0xffff - ~sample);
 
-            wavData[i * 2 + 44] = Math.round(sample) & 0xff;
-            wavData[i * 2 + 45] = Math.round(sample >> 8) & 0xff;
+            wavData[wavDataOffset++] = Math.round(sample) & 0xff;
+            wavData[wavDataOffset++] = Math.round(sample >> 8) & 0xff;
         }
 
         return wavData;
     },
 
+    makeBlob: function(wavArray, mimeType) {
+        var blob;
+        try {
+            blob = new Blob([wavArray], { type: mimeType });
+        } catch (e) {
+            // Old blobbuilder workaround
+            // From https://stackoverflow.com/questions/15293694/blob-constructor-browser-compatibility
+            window.BlobBuilder = window.BlobBuilder ||
+                window.WebKitBlobBuilder ||
+                window.MozBlobBuilder ||
+                window.MSBlobBuilder;
+
+            if (e.name == 'TypeError' && window.BlobBuilder) {
+                var bb = new BlobBuilder();
+                bb.append(wavArray.buffer);
+                blob = bb.getBlob(mimeType);
+            } else if (e.name == "InvalidStateError") {
+                // InvalidStateError (tested on FF13 WinXP)
+                blob = new Blob([wavArray.buffer], { type: mimeType });
+            } else {
+                // blob constructor unsupported entirely
+                throw "Blob not supported at all";
+            }
+        }
+        return blob;
+    },
+
+    base64ArrayBuffer: function(arrayBuffer) {
+        var base64 = ''
+        var encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+        var bytes = new Uint8Array(arrayBuffer)
+        var byteLength = bytes.byteLength
+        var byteRemainder = byteLength % 3
+        var mainLength = byteLength - byteRemainder
+
+        var a, b, c, d
+        var chunk
+
+        // Main loop deals with bytes in chunks of 3
+        for (var i = 0; i < mainLength; i = i + 3) {
+            // Combine the three bytes into a single integer
+            chunk = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2]
+
+            // Use bitmasks to extract 6-bit segments from the triplet
+            a = (chunk & 16515072) >> 18 // 16515072 = (2^6 - 1) << 18
+            b = (chunk & 258048) >> 12 // 258048   = (2^6 - 1) << 12
+            c = (chunk & 4032) >> 6 // 4032     = (2^6 - 1) << 6
+            d = chunk & 63 // 63       = 2^6 - 1
+
+            // Convert the raw binary segments to the appropriate ASCII encoding
+            base64 += encodings[a] + encodings[b] + encodings[c] + encodings[d]
+        }
+
+        // Deal with the remaining bytes and padding
+        if (byteRemainder == 1) {
+            chunk = bytes[mainLength]
+
+            a = (chunk & 252) >> 2 // 252 = (2^6 - 1) << 2
+
+            // Set the 4 least significant bits to zero
+            b = (chunk & 3) << 4 // 3   = 2^2 - 1
+
+            base64 += encodings[a] + encodings[b] + '=='
+        } else if (byteRemainder == 2) {
+            chunk = (bytes[mainLength] << 8) | bytes[mainLength + 1]
+
+            a = (chunk & 64512) >> 10 // 64512 = (2^6 - 1) << 10
+            b = (chunk & 1008) >> 4 // 1008  = (2^6 - 1) << 4
+
+            // Set the 2 least significant bits to zero
+            c = (chunk & 15) << 2 // 15    = 2^4 - 1
+
+            base64 += encodings[a] + encodings[b] + encodings[c] + '='
+        }
+
+        return base64
+    },
+
     transcodeWav: function(samples, tag) {
         var wavArray = this.getWavArray(samples);
-        var blob = new Blob([wavArray], { type: 'audio/wav' });
-        if (this.url !== undefined) {
-            (window.URL || window.webkitURL).reoveObjectURL(this.url);
+        var mimeType = 'audio/wav';
+
+        if (this.uriType === 'blob') {
+            var blob = this.makeBlob(wavArray, mimeType);
+            if (this.url !== undefined) {
+                (window.URL || window.webkitURL).revokeObjectURL(this.url);
+            }
+            this.url = (window.URL || window.webkitURL).createObjectURL(blob);
+        } else if (this.uriType === 'data') {
+            this.url = 'data:' + mimeType + ';base64,';
+
+            var dataBin = '';
+            for (var i = 0; i < wavArray.length; i++) {
+                dataBin += String.fromCharCode(wavArray[i]);
+            }
+            this.url += btoa(dataBin);
         }
-        this.url = (window.URL || window.webkitURL).createObjectURL(blob);
         tag.src = this.url;
     },
 
@@ -282,23 +375,41 @@ ModulationController.prototype = {
         var sampleBlockSize = 1152; //can be anything but make it a multiple of 576 to make encoders life easier
         var mp3Data = [];
         var mp3buf;
+        var mp3FileLength = 0;
         for (var i = 0; i < samples16.length; i += sampleBlockSize) {
             var sampleChunk = samples16.subarray(i, i + sampleBlockSize);
             mp3buf = mp3encoder.encodeBuffer(sampleChunk);
             if (mp3buf.length > 0) {
                 mp3Data.push(mp3buf);
+                mp3FileLength += mp3buf.length;
             }
         }
         mp3buf = mp3encoder.flush(); //finish writing mp3
 
         if (mp3buf.length > 0) {
+            mp3FileLength += mp3buf.length;
             mp3Data.push(new Int8Array(mp3buf));
         }
 
-        var blob = new Blob(mp3Data, { type: 'audio/mpeg' });
-        var url = window.URL.createObjectURL(blob);
+        var linearMp3 = new Int8Array(mp3FileLength);
+        var offset = 0;
+        for (var i = 0; i < mp3Data.length; i++) {
+            for (var j = 0; j < mp3Data[i].length; j++) {
+                linearMp3[offset++] = mp3Data[i][j];
+            }
+        }
 
-        tag.src = url;
+        var mimeType = 'audio/mpeg';
+        if (this.uriType === 'blob') {
+            var blob = this.makeBlob(linearMp3, mimeType);
+            if (this.url !== undefined) {
+                (window.URL || window.webkitURL).revokeObjectURL(this.url);
+            }
+            this.url = (window.URL || window.webkitURL).createObjectURL(blob);
+        } else if (this.uriType === 'data') {
+            this.url = 'data:' + mimeType + ';base64,' + this.base64ArrayBuffer(linearMp3);
+        }
+        tag.src = this.url;
     },
 
     makeSilence: function(buffer, msecs) {
