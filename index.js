@@ -2,7 +2,6 @@
 var Modulator = require("./modulate.js");
 var murmurhash3_32_gc = require("./murmurhash3_gc.js");
 var SparkMD5 = require("./spark-md5.js");
-var pcm = require("./pcm.js");
 
 var ModulationController = function(params) {
 
@@ -180,8 +179,71 @@ ModulationController.prototype = {
         tag.play();
     },
 
-    getWavPcmObj: function(samples) {
-        var pcmData = [];
+    getRawWavData: function(array, lbr, version) {
+        var rawPcmData = this.transcode(array, lbr, version);
+        return this.getWavArray(samples);
+    },
+
+    fillU16: function(arr, off, val) {
+        arr[off + 0] = (val >> 0) & 0xff;
+        arr[off + 1] = (val >> 8) & 0xff;
+    },
+
+    fillU32: function(arr, off, val) {
+        arr[off + 0] = (val >> 0) & 0xff;
+        arr[off + 1] = (val >> 8) & 0xff;
+        arr[off + 2] = (val >> 16) & 0xff;
+        arr[off + 3] = (val >> 24) & 0xff;
+    },
+
+    getWavArray: function(samples) {
+        var numChannels = 1;
+        var bitsPerSample = 16;
+        var sampleRate = this.rate;
+
+        var blockAlign = (numChannels * bitsPerSample) >> 3;
+        var byteRate = blockAlign * sampleRate;
+        var subChunk1Size = 16; // PCM definition size is 16
+        var subChunk2Size = samples.length * (bitsPerSample >> 3);
+        var chunkSize = 36 + subChunk2Size;
+        var audioFormat = 1; // PCM audio format is defined as "1"
+
+        // Pre-allocate the wav output data, plus 44-byte WAV header
+        var wavData = new Uint8Array(samples.length * 2 + 44);
+
+        // Fill in the header
+        // Chunk ID 'RIFF'
+        wavData[0] = 0x52; // 'R'
+        wavData[1] = 0x49; // 'I'
+        wavData[2] = 0x46; // 'F'
+        wavData[3] = 0x46; // 'F'
+        // Chunk size
+        this.fillU32(wavData, 4, chunkSize);
+        // Format 'WAVE'
+        wavData[8] = 0x57; // 'W'
+        wavData[9] = 0x41; // 'A'
+        wavData[10] = 0x56; // 'V'
+        wavData[11] = 0x45; // 'E'
+        // Sub-chunk 1 ID 'fmt '
+        wavData[12] = 0x66; // 'f'
+        wavData[13] = 0x6d; // 'm'
+        wavData[14] = 0x74; // 't'
+        wavData[15] = 0x20; // ' '
+        this.fillU32(wavData, 16, subChunk1Size);
+        this.fillU16(wavData, 20, audioFormat);
+        this.fillU16(wavData, 22, numChannels);
+        this.fillU32(wavData, 24, sampleRate);
+        this.fillU32(wavData, 28, byteRate);
+        this.fillU16(wavData, 32, blockAlign);
+        this.fillU16(wavData, 34, bitsPerSample);
+        // Sub-chunk 2 ID 'data'
+        wavData[36] = 0x64; // 'd'
+        wavData[37] = 0x61; // 'a'
+        wavData[38] = 0x74; // 't'
+        wavData[39] = 0x61; // 'a'
+        this.fillU32(wavData, 40, subChunk2Size);
+
+        // Copy over the wav data
         for (var i = 0; i < samples.length; i++) {
 
             // Convert from 16-bit PCM to two's compliment 8-bit buffers'
@@ -191,43 +253,30 @@ ModulationController.prototype = {
             if (sample < 0)
                 sample = (0xffff - ~sample);
 
-            pcmData.push(Math.round(sample) & 0xff);
-            pcmData.push(Math.round(sample >> 8) & 0xff);
+            wavData[i * 2 + 44] = Math.round(sample) & 0xff;
+            wavData[i * 2 + 45] = Math.round(sample >> 8) & 0xff;
         }
 
-        var pcmObj = new pcm({
-            channels: 1,
-            rate: this.rate,
-            depth: 16
-        }).toWav(pcmData);
-
-        return pcmObj;
-    },
-
-    getRawWavData: function(array, lbr, version) {
-        var rawPcmData = this.transcode(array, lbr, version);
-        var pcmObj = this.getWavPcmObj(rawPcmData);
-        return pcmObj.raw;
+        return wavData;
     },
 
     transcodeWav: function(samples, tag) {
-        var pcmObj = this.getWavPcmObj(samples);
-        tag.src = pcmObj.encode();
+        var wavArray = this.getWavArray(samples);
+        var blob = new Blob([wavArray], { type: 'audio/wav' });
+        if (this.url !== undefined) {
+            (window.URL || window.webkitURL).reoveObjectURL(this.url);
+        }
+        this.url = (window.URL || window.webkitURL).createObjectURL(blob);
+        tag.src = this.url;
     },
 
     transcodeMp3: function(samples, tag) {
         var mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128); //mono 44.1khz encode to 128kbps
         var samples16 = new Int16Array(samples.length);
-        var timeElapsed;
-        var timeStart;
-        var timeEnd;
 
-        timeStart = performance.now();
         for (var i = 0; i < samples.length; i++) {
             samples16[i] = samples[i];
         }
-        timeEnd = performance.now();
-        timeElapsed = timeEnd - timeStart;
 
         // Taken from lamejs README.md
         var sampleBlockSize = 1152; //can be anything but make it a multiple of 576 to make encoders life easier
@@ -235,31 +284,19 @@ ModulationController.prototype = {
         var mp3buf;
         for (var i = 0; i < samples16.length; i += sampleBlockSize) {
             var sampleChunk = samples16.subarray(i, i + sampleBlockSize);
-            timeStart = performance.now();
             mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-            timeEnd = performance.now();
-            timeElapsed = timeEnd - timeStart;
             if (mp3buf.length > 0) {
                 mp3Data.push(mp3buf);
             }
         }
-        timeStart = performance.now();
         mp3buf = mp3encoder.flush(); //finish writing mp3
-        timeEnd = performance.now();
-        timeElapsed = timeEnd - timeStart;
 
-        timeStart = performance.now();
         if (mp3buf.length > 0) {
             mp3Data.push(new Int8Array(mp3buf));
         }
-        timeEnd = performance.now();
-        timeElapsed = timeEnd - timeStart;
 
-        timeStart = performance.now();
-        var blob = new Blob(mp3Data, { type: 'audio/mp3' });
+        var blob = new Blob(mp3Data, { type: 'audio/mpeg' });
         var url = window.URL.createObjectURL(blob);
-        timeEnd = performance.now();
-        timeElapsed = timeEnd - timeStart;
 
         tag.src = url;
     },
