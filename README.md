@@ -18,12 +18,18 @@ Next, initialize a modulation controller.  If you want to be able to visualize t
 
 You can also specify the output audio format for the audio tag.  Currently-supported values are 'wav' and 'mp3'.
 
+Additionally, two strategies are avilable for encoding data for the browser: Blob and Data URI.
+Blob uses less memory, but is not compatible with older browsers.
+The two options encoded as strings as 'blob' and 'data'.  If unspecified,
+the encoder will default to using a 'data' URI.
+
 If you want a more resiliant "low bitrate" mode, specify "true" to lbr.
 
     var ModulationController = require('chibitronics-ltc-modulate');
     var modController = new ModulationController({
         canvas: getCanvas(),
         lbr: lbrEnable,
+        uriType: 'data',
         format: 'wav',
         endCallback: function () {
             getWaveFooter().style.display = 'none';
