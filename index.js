@@ -182,7 +182,7 @@ ModulationController.prototype = {
 
     getRawWavData: function(array, lbr, version) {
         var rawPcmData = this.transcode(array, lbr, version);
-        return this.getWavArray(samples);
+        return this.getWavArray(rawPcmData);
     },
 
     fillU16: function(arr, off, val) {
